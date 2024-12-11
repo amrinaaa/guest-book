@@ -213,7 +213,7 @@ mainLoop file daftar = do
             mainLoop file daftar
         "9" -> putStrLn "Terima kasih telah menggunakan aplikasi Buku Tamu."
         _ -> do
-            putStrLn "Pilihan tidak valid. Coba lagi."
+            putStrLn "Pilihan tidak valid. Coba lagi!"
             mainLoop file daftar
 
 inputTamu :: [Tamu] -> IO Tamu
