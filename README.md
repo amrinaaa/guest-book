@@ -26,11 +26,11 @@ Sebelum menjalankan aplikasi ini, pastikan Anda telah menginstal:
 
 1. Clone repositori ini:
 ```bash
-git clone https://github.com/username/haskell-buku-tamu.git 
+git clone https://github.com/diefordie/guest-book.git
 ```
 
 ```bash
-cd haskell-buku-tamu
+cd guest-book
 ```
 
 
