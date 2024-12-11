@@ -1,0 +1,56 @@
+# Haskell specific
+dist
+dist-*
+cabal-dev
+*.o
+*.hi
+*.hie
+*.chi
+*.chs.h
+*.dyn_o
+*.dyn_hi
+.hpc
+.hsenv
+.cabal-sandbox/
+cabal.sandbox.config
+*.prof
+*.aux
+*.hp
+*.eventlog
+.stack-work/
+cabal.project.local
+cabal.project.local~
+.HTF/
+.ghc.environment.*
+
+# Executable
+main
+
+# Data files
+data_tamu.txt
+data_tamu.json
+activity_log.txt
+
+# IDE/Editor specific
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Build outputs
+build/
+bin/
+
+# Dependency directories
+.cabal-sandbox/
+.stack-work/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
