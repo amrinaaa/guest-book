@@ -25,17 +25,25 @@ Sebelum menjalankan aplikasi ini, pastikan Anda telah menginstal:
 ### Menggunakan Cabal
 
 1. Clone repositori ini:
-git clone https://github.com/username/haskell-buku-tamu.git cd haskell-buku-tamu
+```bash
+git clone https://github.com/username/haskell-buku-tamu.git 
+```
+
+```bash
+cd haskell-buku-tamu
+```
 
 
 2. Build proyek:
-
+```bash
 cabal build
+````
 
 
 3. Jalankan aplikasi:
+```bash
 cabal run
-
+```
 
 ## Penggunaan
 
