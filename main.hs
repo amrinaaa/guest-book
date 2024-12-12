@@ -23,6 +23,8 @@ data Tamu = Tamu
   , namaTamu :: String
   , emailTamu :: String
   , noHpTamu :: String
+  , checkInTime :: UTCTime
+  , checkOutTime :: Maybe UTCTime
   , createdAtTamu :: UTCTime
   , updatedAtTamu :: UTCTime
   } deriving (Show, Read, Generic)
@@ -42,25 +44,32 @@ bacaTamuDariFile file = do
         else maybe [] id . decode <$> B.readFile file
 
 -- CRUD operations
-tambahTamu :: FilePath -> [Tamu] -> Tamu -> IO [Tamu]
-tambahTamu file daftar tamu = do
+tambahTamu :: FilePath -> [Tamu] -> Tamu -> String -> IO [Tamu]
+tambahTamu file daftar tamu namaSeminar = do
     let daftarBaru = tamu : daftar
     tulisTamuKeFile file daftarBaru
     logActivity $ "Tamu ditambahkan: " ++ show (idTamu tamu)
+    putStrLn $ "Tamu berhasil ditambahkan dalam Seminar " ++ namaSeminar
     return daftarBaru
 
-editTamu :: FilePath -> [Tamu] -> Int -> (Tamu -> Tamu) -> IO [Tamu]
-editTamu file daftar id updateFunc = do
-    let daftarBaru = map (\t -> if idTamu t == id then updateFunc t else t) daftar
+editTamu :: FilePath -> [Tamu] -> Int -> (Tamu -> Tamu) -> String -> IO [Tamu]
+editTamu file daftar id updateFunc namaSeminar= do
+    let daftarBaru = map (\t -> if idTamu t == id 
+                                then let tamuBaru = updateFunc t
+                                    in tamuBaru { idTamu = idTamu t }
+                                else t) daftar
     tulisTamuKeFile file daftarBaru
     logActivity $ "Tamu diubah: " ++ show id
+    putStrLn $ "Tamu dengan ID " ++ show id ++ " berhasil diedit di seminar " ++ namaSeminar
     return daftarBaru
 
-hapusTamu :: FilePath -> [Tamu] -> Int -> IO [Tamu]
-hapusTamu file daftar id = do
+-- Fungsi untuk menghapus data tamu
+hapusTamu :: FilePath -> [Tamu] -> Int -> String -> IO [Tamu]
+hapusTamu file daftar id namaSeminar = do
     let daftarBaru = filter (\t -> idTamu t /= id) daftar
     tulisTamuKeFile file daftarBaru
     logActivity $ "Tamu dihapus: " ++ show id
+    putStrLn $ "Tamu dengan ID " ++ show id ++ " telah dihapus dari seminar " ++ namaSeminar ++ "."
     return daftarBaru
 
 -- Search and sort
@@ -79,14 +88,16 @@ tamuPerBulan = Map.fromListWith (+) . map (\t -> (toYearMonth (createdAtTamu t),
 -- Export to CSV
 exportToCSV :: FilePath -> [Tamu] -> IO ()
 exportToCSV file tamus = writeFile file $ unlines $ 
-    "ID,Nama,Email,No HP,Created At,Updated At" : 
+    "ID,Nama,Email,No HP,Check-In,Check-Out,Created At,Updated At" : 
     map tamuToCSV tamus
   where
-    tamuToCSV t = intercalate "," 
+    tamuToCSV t = intercalate " | " 
         [ show (idTamu t)
         , namaTamu t
         , emailTamu t
         , noHpTamu t
+        , formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S" (checkInTime t)
+        , maybe "Belum Check-Out" (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S") (checkOutTime t)
         , formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S" (createdAtTamu t)
         , formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S" (updatedAtTamu t)
         ]
@@ -124,7 +135,8 @@ createTable rows =
 lihatTamu :: [Tamu] -> IO ()
 lihatTamu [] = putStrLn "Tidak ada tamu dalam daftar."
 lihatTamu daftar = do
-    let headers = ["ID", "Nama", "Email", "No HP", "Created At", "Updated At"]
+    -- adakutambah
+    let headers = ["ID", "Nama", "Email", "No HP",  "Check-In", "Check-Out", "Created At", "Updated At"]
         rows = headers : map tamuToRow daftar
     putStrLn $ createTable rows
   where
@@ -133,19 +145,55 @@ lihatTamu daftar = do
         , namaTamu tamu
         , emailTamu tamu
         , noHpTamu tamu
+        , formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S" (checkInTime tamu)
+        , maybe "Belum Check-Out" (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S") (checkOutTime tamu)
         , formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S" (createdAtTamu tamu)
         , formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S" (updatedAtTamu tamu)
         ]
+
+checkOutTamu :: FilePath -> [Tamu] -> Int -> IO [Tamu]
+checkOutTamu file daftar id = do
+    currentTime <- getCurrentTime
+    let daftarBaru = map (updateCheckOut currentTime) daftar
+    tulisTamuKeFile file daftarBaru
+    logActivity $ "Tamu check-out: " ++ show id
+    return daftarBaru
+  where
+    updateCheckOut currentTime tamu 
+        | idTamu tamu == id = tamu { 
+            checkOutTime = Just currentTime, 
+            updatedAtTamu = currentTime 
+          }
+        | otherwise = tamu
 
 -- Main program
 main :: IO ()
 main = do
     let fileTamu = "data_tamu.txt"
     daftarTamu <- bacaTamuDariFile fileTamu
-    mainLoop fileTamu daftarTamu
+    namaSeminar <- inputNamaSeminar
+    mainLoop fileTamu daftarTamu namaSeminar
 
-mainLoop :: FilePath -> [Tamu] -> IO ()
-mainLoop file daftar = do
+-- Meminta Nama Seminar dan Konfirmasi
+inputNamaSeminar :: IO String
+inputNamaSeminar = do
+    putStrLn "Masukkan nama seminar: "
+    namaSeminar <- getLine
+    putStrLn $ "Apakah Anda yakin nama seminar adalah: " ++ namaSeminar ++ "?"
+    putStrLn "1. Ya"
+    putStrLn "2. Tidak"
+    pilihan <- getLine
+    case pilihan of
+        "1" -> return namaSeminar
+        "2" -> inputNamaSeminar  -- Jika tidak, minta ulang
+        _   -> do
+            putStrLn "Pilihan tidak valid. Coba lagi!"
+            inputNamaSeminar  -- Jika input tidak valid, minta ulang
+
+-- Main Loop yang menggunakan Nama Seminar
+mainLoop :: FilePath -> [Tamu] -> String -> IO ()
+mainLoop file daftar namaSeminar = do
+    putStrLn $ "\nSeminar: " ++ namaSeminar
     putStrLn "\nAplikasi Buku Tamu"
     putStrLn "1. Tambah Tamu"
     putStrLn "2. Lihat Daftar Tamu"
@@ -155,36 +203,42 @@ mainLoop file daftar = do
     putStrLn "6. Urutkan Daftar Tamu"
     putStrLn "7. Statistik Tamu"
     putStrLn "8. Export ke CSV"
-    putStrLn "9. Keluar"
+    putStrLn "9. Check-Out Tamu" 
+    putStrLn "10. Keluar" 
     putStrLn "Pilih menu: "
     pilihan <- getLine
     case pilihan of
         "1" -> do
             tamu <- inputTamu daftar
-            daftarBaru <- tambahTamu file daftar tamu
-            mainLoop file daftarBaru
+            daftarBaru <- tambahTamu file daftar tamu namaSeminar
+            mainLoop file daftarBaru namaSeminar
         "2" -> do
             lihatTamu daftar
-            mainLoop file daftar
+            mainLoop file daftar namaSeminar
         "3" -> do
             putStrLn "Masukkan ID tamu yang ingin diedit: "
             idStr <- getLine
             let id = read idStr :: Int
             tamu <- inputTamu daftar
-            daftarBaru <- editTamu file daftar id (const tamu)
-            mainLoop file daftarBaru
+            let updateFunc = const tamu
+            daftarBaru <- editTamu file daftar id updateFunc namaSeminar
+            mainLoop file daftarBaru namaSeminar
+
         "4" -> do
             putStrLn "Masukkan ID tamu yang ingin dihapus: "
             idStr <- getLine
             let id = read idStr :: Int
-            daftarBaru <- hapusTamu file daftar id
-            mainLoop file daftarBaru
+            putStrLn "Masukkan nama seminar tempat tamu ini hadir: "
+            namaSeminar <- getLine
+            daftarBaru <- hapusTamu file daftar id namaSeminar
+            mainLoop file daftarBaru namaSeminar
+
         "5" -> do
             putStrLn "Masukkan kata kunci pencarian: "
             query <- getLine
             let hasil = cariTamu query daftar
             lihatTamu hasil
-            mainLoop file daftar
+            mainLoop file daftar namaSeminar
         "6" -> do
             putStrLn "Urutkan berdasarkan:"
             putStrLn "1. Nama"
@@ -197,49 +251,69 @@ mainLoop file daftar = do
                     "3" -> sortTamu createdAtTamu daftar
                     _   -> daftar
             lihatTamu daftarUrut
-            mainLoop file daftar
+            mainLoop file daftar namaSeminar
         "7" -> do
             let stats = tamuPerBulan daftar
             putStrLn "Statistik Tamu per Bulan:"
             mapM_ (\((year, month), count) -> 
                 putStrLn $ show year ++ "-" ++ show month ++ ": " ++ show count) 
                 (Map.toList stats)
-            mainLoop file daftar
+            mainLoop file daftar namaSeminar
         "8" -> do
             putStrLn "Masukkan nama file CSV untuk export: "
             csvFile <- getLine
             exportToCSV csvFile daftar
             putStrLn $ "Data telah diekspor ke " ++ csvFile
-            mainLoop file daftar
-        "9" -> putStrLn "Terima kasih telah menggunakan aplikasi Buku Tamu."
+            mainLoop file daftar namaSeminar
+        "9" -> do 
+            putStrLn "Masukkan ID tamu yang ingin check-out: "
+            idStr <- getLine
+            let id = read idStr :: Int
+            daftarBaru <- checkOutTamu file daftar id
+            mainLoop file daftarBaru namaSeminar
+        "10" -> putStrLn "Terima kasih telah menggunakan aplikasi Buku Tamu."
         _ -> do
             putStrLn "Pilihan tidak valid. Coba lagi!"
-            mainLoop file daftar
+            mainLoop file daftar namaSeminar
 
 inputTamu :: [Tamu] -> IO Tamu
 inputTamu daftar = do
     putStrLn "Masukkan Nama Tamu: "
     nama <- getLine
+    inputEmail nama daftar
+
+inputEmail :: String -> [Tamu] -> IO Tamu
+inputEmail nama daftar = do
     putStrLn "Masukkan Email: "
     email <- getLine
     if not (validateEmail email)
         then do
             putStrLn "Email tidak valid. Coba lagi."
-            inputTamu daftar
+            inputEmail nama daftar
+        else if email `elem` map emailTamu daftar
+            then do
+                putStrLn "Tamu sudah terdaftar"
+                inputEmail nama daftar
+            else inputNoHp nama email daftar
+
+inputNoHp :: String -> String -> [Tamu] -> IO Tamu
+inputNoHp nama email daftar = do
+    putStrLn "Masukkan Nomor HP: "
+    noHp <- getLine
+    if not (validatePhoneNumber noHp)
+        then do
+            putStrLn "Nomor HP tidak valid. Coba lagi."
+            inputNoHp nama email daftar
         else do
-            putStrLn "Masukkan Nomor HP: "
-            noHp <- getLine
-            if not (validatePhoneNumber noHp)
-                then do
-                    putStrLn "Nomor HP tidak valid. Coba lagi."
-                    inputTamu daftar
-                else do
-                    currentTime <- getCurrentTime
-                    return Tamu 
-                        { idTamu = if null daftar then 1 else maximum (map idTamu daftar) + 1
-                        , namaTamu = nama
-                        , emailTamu = email
-                        , noHpTamu = noHp
-                        , createdAtTamu = currentTime
-                        , updatedAtTamu = currentTime
-                        }
+            -- adakutambah
+            currentTime <- getCurrentTime
+            return Tamu 
+                { idTamu = if null daftar then 1 else maximum (map idTamu daftar) + 1
+                , namaTamu = nama
+                , emailTamu = email
+                , noHpTamu = noHp
+                , checkInTime = currentTime
+                , checkOutTime = Nothing
+                , createdAtTamu = currentTime
+                , updatedAtTamu = currentTime
+                }
